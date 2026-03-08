@@ -55,8 +55,13 @@ public class MessageController {
         String author  = body.getOrDefault("author", "anonymous");
         String content = body.get("content");
 
+        // Debug: log what is being sent
+        System.out.println("[DEBUG] POST /api/messages - author: '" + author + "', content: '" + content + "'");
+
+        // Skip saving empty messages
         if (content == null || content.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Content is required"));
+            System.out.println("[DEBUG] Skipping empty message");
+            return ResponseEntity.ok(Map.of("message", "Empty message skipped"));
         }
 
         // ⚠️ No sanitization — raw HTML stored as-is
