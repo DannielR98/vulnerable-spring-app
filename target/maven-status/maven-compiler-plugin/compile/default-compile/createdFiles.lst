@@ -1,0 +1,10 @@
+com\vulnerable\app\controller\UserController.class
+com\vulnerable\app\repository\MessageRepository.class
+com\vulnerable\app\controller\AuthController.class
+com\vulnerable\app\config\SecurityConfig.class
+com\vulnerable\app\config\JwtUtil.class
+com\vulnerable\app\VulnerableApplication.class
+com\vulnerable\app\model\User.class
+com\vulnerable\app\repository\UserRepository.class
+com\vulnerable\app\model\Message.class
+com\vulnerable\app\controller\MessageController.class

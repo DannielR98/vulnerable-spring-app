@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VulnBank — Message Board</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0d0d0d;
+            color: #00ff41;
+            min-height: 100vh;
+        }
+        .header {
+            background: #111;
+            border-bottom: 1px solid #00ff41;
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 1.4rem; letter-spacing: 4px; }
+        .vuln-badge {
+            background: #ff0000;
+            color: #fff;
+            padding: 4px 12px;
+            font-size: 0.7rem;
+            border-radius: 2px;
+            letter-spacing: 2px;
+        }
+        .container { max-width: 860px; margin: 40px auto; padding: 0 24px; }
+        .warning {
+            background: rgba(255,0,0,0.1);
+            border: 1px solid #ff0000;
+            padding: 12px 20px;
+            border-radius: 4px;
+            margin-bottom: 32px;
+            font-size: 0.85rem;
+            color: #ff4444;
+        }
+        .form-section {
+            background: #111;
+            border: 1px solid #333;
+            padding: 24px;
+            border-radius: 4px;
+            margin-bottom: 32px;
+        }
+        .form-section h2 { font-size: 1rem; letter-spacing: 3px; margin-bottom: 16px; color: #888; }
+        .field { margin-bottom: 12px; }
+        .field label { display: block; font-size: 0.75rem; color: #666; margin-bottom: 6px; letter-spacing: 1px; }
+        .field input, .field textarea {
+            width: 100%;
+            background: #0d0d0d;
+            border: 1px solid #333;
+            color: #00ff41;
+            padding: 10px 14px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            border-radius: 2px;
+            resize: vertical;
+        }
+        .field input:focus, .field textarea:focus {
+            outline: none;
+            border-color: #00ff41;
+        }
+        .btn {
+            background: #00ff41;
+            color: #000;
+            border: none;
+            padding: 10px 24px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            letter-spacing: 2px;
+            border-radius: 2px;
+        }
+        .btn:hover { background: #00cc33; }
+        .messages-list { display: flex; flex-direction: column; gap: 16px; }
+        .message-card {
+            background: #111;
+            border: 1px solid #1a1a1a;
+            border-left: 3px solid #00ff41;
+            padding: 16px 20px;
+            border-radius: 2px;
+        }
+        .message-author {
+            font-size: 0.75rem;
+            color: #00ff41;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+        .message-content {
+            font-size: 0.95rem;
+            color: #ccc;
+            line-height: 1.5;
+        }
+        .xss-note {
+            background: rgba(255,200,0,0.05);
+            border: 1px solid #664400;
+            border-radius: 3px;
+            padding: 8px 14px;
+            margin-bottom: 8px;
+            font-size: 0.7rem;
+            color: #aa6600;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>VULNBANK :: MESSAGE BOARD</h1>
+        <span class="vuln-badge">⚠ VULNERABLE</span>
+    </div>
+
+    <div class="container">
+        <div class="warning">
+            ⚠️ XSS DEMO: Content is rendered with <code>th:utext</code> (unescaped).
+            Any HTML or JavaScript in messages executes directly in the browser.
+        </div>
+
+        <!-- Post form -->
+        <div class="form-section">
+            <h2>POST MESSAGE</h2>
+            <div class="field">
+                <label>AUTHOR</label>
+                <input type="text" id="authorInput" placeholder="your name" value="guest" />
+            </div>
+            <div class="field">
+                <label>MESSAGE (try: &lt;script&gt;alert('XSS')&lt;/script&gt;)</label>
+                <textarea id="contentInput" rows="4" placeholder="Write something..."></textarea>
+            </div>
+            <button class="btn" onclick="postMessage()">POST →</button>
+        </div>
+
+        <!-- Messages -->
+        <div class="messages-list">
+            <div th:each="msg : ${messages}" class="message-card">
+                <div class="xss-note">rendered via th:utext — unescaped HTML</div>
+                <div class="message-author" th:text="${msg.author}">author</div>
+                <!--
+                    ⚠️ VULNERABILITY: th:utext renders raw HTML, enabling XSS.
+                    Safe version would use th:text which escapes content.
+                -->
+                <div class="message-content" th:utext="${msg.content}">content</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function postMessage() {
+            const author  = document.getElementById('authorInput').value;
+            const content = document.getElementById('contentInput').value;
+
+            const res = await fetch('/messages/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ author, content })
+            });
+
+            if (res.ok) {
+                // Reload to show new message (and trigger XSS if payload posted)
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                alert('Error: ' + err.error);
+            }
+        }
+    </script>
+</body>
+</html>

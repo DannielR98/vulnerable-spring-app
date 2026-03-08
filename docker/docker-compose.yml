@@ -1,0 +1,37 @@
+version: '3.8'
+
+# ⚠️  VulnBank — FOR EDUCATIONAL USE ONLY
+# ⚠️  Run ONLY in isolated, local environment
+# ⚠️  Never expose port 8080 to public internet
+
+services:
+  vulnbank:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: vulnbank
+    ports:
+      - "8080:8080"       # App
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - JWT_SECRET=secret123   # ⚠️ Weak secret — intentional
+    restart: unless-stopped
+    networks:
+      - vulnnet
+
+  # Attacker machine (kali-like) for running exploits
+  attacker:
+    image: python:3.11-slim
+    container_name: attacker
+    volumes:
+      - ../attacks:/attacks
+    working_dir: /attacks
+    command: tail -f /dev/null
+    depends_on:
+      - vulnbank
+    networks:
+      - vulnnet
+
+networks:
+  vulnnet:
+    driver: bridge

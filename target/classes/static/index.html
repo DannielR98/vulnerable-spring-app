@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VulnBank — Security Lab</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+        :root {
+            --green: #00ff41;
+            --red: #ff2d55;
+            --yellow: #ffd60a;
+            --bg: #080808;
+            --surface: #0f0f0f;
+            --border: #1c1c1c;
+            --dim: #444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Share Tech Mono', monospace;
+            background: var(--bg);
+            color: var(--green);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Scanline overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,255,65,0.015) 2px,
+                rgba(0,255,65,0.015) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        header {
+            border-bottom: 1px solid var(--green);
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--surface);
+        }
+
+        .logo {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: 6px;
+            color: var(--green);
+            text-shadow: 0 0 20px rgba(0,255,65,0.5);
+        }
+
+        .logo span { color: var(--red); }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 0.75rem;
+            color: var(--dim);
+            letter-spacing: 2px;
+        }
+
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: calc(100vh - 65px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            border-right: 1px solid var(--border);
+            padding: 24px 0;
+            background: var(--surface);
+        }
+
+        .sidebar-section {
+            padding: 0 24px;
+            margin-bottom: 32px;
+        }
+
+        .sidebar-label {
+            font-size: 0.65rem;
+            color: var(--dim);
+            letter-spacing: 3px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            color: #888;
+            transition: all 0.15s;
+            border: 1px solid transparent;
+            margin-bottom: 4px;
+            text-decoration: none;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(0,255,65,0.07);
+            border-color: rgba(0,255,65,0.2);
+            color: var(--green);
+        }
+
+        .nav-icon { font-size: 1rem; }
+
+        .vuln-tag {
+            margin-left: auto;
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 2px;
+            letter-spacing: 1px;
+        }
+
+        .tag-sqli { background: rgba(255,45,85,0.2); color: var(--red); border: 1px solid rgba(255,45,85,0.3); }
+        .tag-xss  { background: rgba(255,214,10,0.2); color: var(--yellow); border: 1px solid rgba(255,214,10,0.3); }
+        .tag-auth { background: rgba(0,255,65,0.1); color: var(--green); border: 1px solid rgba(0,255,65,0.2); }
+
+        /* Content area */
+        .content {
+            padding: 32px 40px;
+            overflow-y: auto;
+        }
+
+        .panel {
+            display: none;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .panel.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.1rem;
+            letter-spacing: 4px;
+            margin-bottom: 8px;
+        }
+
+        .panel-subtitle {
+            color: var(--dim);
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 0.75rem;
+            color: var(--dim);
+            letter-spacing: 3px;
+            margin-bottom: 16px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .inp {
+            flex: 1;
+            min-width: 200px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--green);
+            padding: 10px 14px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.9rem;
+            border-radius: 3px;
+        }
+
+        .inp:focus {
+            outline: none;
+            border-color: var(--green);
+            box-shadow: 0 0 10px rgba(0,255,65,0.15);
+        }
+
+        .btn {
+            background: var(--green);
+            color: #000;
+            border: none;
+            padding: 10px 24px;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.7rem;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: 3px;
+            letter-spacing: 2px;
+            transition: all 0.15s;
+        }
+
+        .btn:hover { background: #00dd38; transform: translateY(-1px); }
+
+        .btn-danger {
+            background: transparent;
+            color: var(--red);
+            border: 1px solid var(--red);
+        }
+
+        .btn-danger:hover { background: rgba(255,45,85,0.1); transform: translateY(-1px); }
+
+        .payload-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .payload {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            color: var(--yellow);
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .payload:hover {
+            border-color: var(--yellow);
+            background: rgba(255,214,10,0.05);
+        }
+
+        .payload-desc { font-size: 0.7rem; color: var(--dim); margin-top: 3px; }
+
+        .output {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 16px;
+            min-height: 80px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .output.success { border-color: rgba(0,255,65,0.4); color: var(--green); }
+        .output.error   { border-color: rgba(255,45,85,0.4); color: var(--red); }
+
+        .output-label {
+            font-size: 0.65rem;
+            color: var(--dim);
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+
+        .token-display {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 12px;
+            font-size: 0.75rem;
+            color: var(--yellow);
+            word-break: break-all;
+            line-height: 1.5;
+            min-height: 60px;
+        }
+
+        .jwt-parts { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+        .jwt-part { padding: 8px; border-radius: 3px; font-size: 0.75rem; }
+        .jwt-header  { background: rgba(255,45,85,0.1);  color: var(--red);    border: 1px solid rgba(255,45,85,0.2); }
+        .jwt-payload { background: rgba(255,214,10,0.1); color: var(--yellow); border: 1px solid rgba(255,214,10,0.2); }
+        .jwt-sig     { background: rgba(0,255,65,0.05);  color: var(--green);  border: 1px solid rgba(0,255,65,0.1); }
+
+        .counter {
+            font-family: 'Orbitron', monospace;
+            font-size: 2rem;
+            font-weight: 900;
+            color: var(--red);
+            text-shadow: 0 0 20px rgba(255,45,85,0.5);
+        }
+
+        .fix-section {
+            background: rgba(0,255,65,0.03);
+            border: 1px solid rgba(0,255,65,0.15);
+            border-radius: 4px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .fix-title {
+            font-size: 0.75rem;
+            color: var(--green);
+            letter-spacing: 3px;
+            margin-bottom: 12px;
+        }
+
+        pre {
+            background: #000;
+            border: 1px solid #1a1a1a;
+            border-radius: 3px;
+            padding: 14px;
+            overflow-x: auto;
+            font-size: 0.78rem;
+            line-height: 1.6;
+            color: #aaa;
+        }
+
+        .highlight-green { color: var(--green); }
+        .highlight-red   { color: var(--red); }
+        .highlight-yellow { color: var(--yellow); }
+
+        .stat-row { display: flex; gap: 20px; margin-bottom: 24px; }
+        .stat {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 16px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-num { font-family: 'Orbitron', monospace; font-size: 1.6rem; font-weight: 900; }
+        .stat-lbl { font-size: 0.65rem; color: var(--dim); letter-spacing: 2px; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">VULN<span>BANK</span></div>
+    <div class="header-right">
+        <div class="status-dot"></div>
+        <span>SECURITY LAB</span>
+        <span>|</span>
+        <span id="currentUser">NOT LOGGED IN</span>
+    </div>
+</header>
+
+<div class="main-grid">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-label">Vulnerabilities</div>
+            <div class="nav-item active" onclick="showPanel('sqli')">
+                <span class="nav-icon">💉</span>
+                SQL Injection
+                <span class="vuln-tag tag-sqli">SQLi</span>
+            </div>
+            <a class="nav-item" href="/messages" target="_blank">
+                <span class="nav-icon">📝</span>
+                XSS Board
+                <span class="vuln-tag tag-xss">XSS</span>
+            </a>
+            <div class="nav-item" onclick="showPanel('auth')">
+                <span class="nav-icon">🔑</span>
+                Broken Auth
+                <span class="vuln-tag tag-auth">JWT</span>
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-label">Tools</div>
+            <div class="nav-item" onclick="showPanel('decode')">
+                <span class="nav-icon">🔍</span>
+                JWT Decoder
+            </div>
+            <div class="nav-item" onclick="showPanel('brute')">
+                <span class="nav-icon">⚡</span>
+                Brute Force
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <div class="sidebar-label">H2 Console</div>
+            <a class="nav-item" href="/h2-console" target="_blank">
+                <span class="nav-icon">🗄️</span>
+                Database Console
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <main class="content">
+
+        <!-- SQL Injection Panel -->
+        <div class="panel active" id="panel-sqli">
+            <div class="panel-title">SQL INJECTION</div>
+            <div class="panel-subtitle">String-concatenated SQL queries — no parameterization</div>
+
+            <div class="grid2">
+                <div>
+                    <div class="card">
+                        <div class="card-title">LOGIN BYPASS</div>
+                        <div class="input-row">
+                            <input class="inp" id="sqli-user" placeholder="username" value="admin' --" />
+                        </div>
+                        <div class="input-row">
+                            <input class="inp" id="sqli-pass" placeholder="password" value="anything" />
+                            <button class="btn" onclick="sqliLogin()">ATTACK</button>
+                        </div>
+                        <div class="output-label">RESPONSE</div>
+                        <div class="output" id="sqli-login-out">Waiting...</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">USER SEARCH INJECTION</div>
+                        <div class="input-row">
+                            <input class="inp" id="sqli-search" placeholder="search query" value="' OR '1'='1" />
+                            <button class="btn" onclick="sqliSearch()">SEARCH</button>
+                        </div>
+                        <div class="output-label">RESPONSE</div>
+                        <div class="output" id="sqli-search-out">Waiting...</div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="card">
+                        <div class="card-title">PAYLOADS</div>
+                        <div class="payload-list">
+                            <div class="payload" onclick="setPayload(\"admin' --\", '')">
+                                <div>
+                                    <div>admin' --</div>
+                                    <div class="payload-desc">Comment-out password check</div>
+                                </div>
+                                <span>→</span>
+                            </div>
+                            <div class="payload" onclick="setPayload(\"' OR '1'='1\", \"' OR '1'='1\")">
+                                <div>
+                                    <div>' OR '1'='1</div>
+                                    <div class="payload-desc">Always-true condition — dump all users</div>
+                                </div>
+                                <span>→</span>
+                            </div>
+                            <div class="payload" onclick="setPayload(\"'; DROP TABLE users; --\", '')">
+                                <div>
+                                    <div>'; DROP TABLE users; --</div>
+                                    <div class="payload-desc">Bobby Tables — destructive injection</div>
+                                </div>
+                                <span>→</span>
+                            </div>
+                            <div class="payload" onclick="setSearchPayload(\"' UNION SELECT id,username,password,email,role,CAST(balance AS VARCHAR) FROM users--\")">
+                                <div>
+                                    <div>' UNION SELECT ... (search)</div>
+                                    <div class="payload-desc">UNION-based data extraction</div>
+                                </div>
+                                <span>→</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="fix-section">
+                        <div class="fix-title">✅ FIX: Use Parameterized Queries</div>
+                        <pre><span class="highlight-red">// ❌ VULNERABLE
+String sql = "SELECT * FROM users WHERE username = '"
+    + username + "'";</span>
+
+<span class="highlight-green">// ✅ FIXED
+String sql = "SELECT * FROM users WHERE username = :username";
+entityManager.createNativeQuery(sql, User.class)
+    .setParameter("username", username)
+    .getResultList();</span>
+
+<span class="highlight-green">// ✅ EVEN BETTER — use JPA Repository
+userRepository.findByUsername(username);</span></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Auth Panel -->
+        <div class="panel" id="panel-auth">
+            <div class="panel-title">BROKEN AUTHENTICATION</div>
+            <div class="panel-subtitle">JWT with no expiry + no rate limiting on login</div>
+
+            <div class="grid2">
+                <div>
+                    <div class="card">
+                        <div class="card-title">GENERATE NON-EXPIRING TOKEN</div>
+                        <div class="input-row">
+                            <input class="inp" id="auth-user" placeholder="username" value="alice" />
+                            <input class="inp" id="auth-pass" placeholder="password" value="password1" />
+                        </div>
+                        <button class="btn" onclick="doLogin()">LOGIN & GET TOKEN</button>
+                        <br/><br/>
+                        <div class="output-label">TOKEN (never expires)</div>
+                        <div class="token-display" id="token-display">—</div>
+                        <br/>
+                        <div class="output-label">DECODED JWT</div>
+                        <div class="jwt-parts" id="jwt-decoded"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="fix-section" style="margin-top:0">
+                        <div class="fix-title">✅ FIX: Set Token Expiration</div>
+                        <pre><span class="highlight-red">// ❌ VULNERABLE — no expiry
+Jwts.builder()
+    .setSubject(username)
+    .signWith(HS256, secret)
+    .compact();</span>
+
+<span class="highlight-green">// ✅ FIXED — 15 minute expiry
+Jwts.builder()
+    .setSubject(username)
+    .setIssuedAt(new Date())
+    .setExpiration(
+        new Date(System.currentTimeMillis()
+            + 15 * 60 * 1000))
+    .signWith(HS256, secret)
+    .compact();</span></pre>
+                    </div>
+
+                    <div class="fix-section">
+                        <div class="fix-title">✅ FIX: Add Rate Limiting</div>
+                        <pre><span class="highlight-green">// Use Bucket4j or Spring Boot rate limiter
+@RateLimiter(name = "loginEndpoint")
+@PostMapping("/login")
+public ResponseEntity&lt;?&gt; login(...) { ... }
+
+# application.yml
+resilience4j.ratelimiter:
+  instances:
+    loginEndpoint:
+      limit-for-period: 5
+      limit-refresh-period: 1m
+      timeout-duration: 0</span></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- JWT Decode Panel -->
+        <div class="panel" id="panel-decode">
+            <div class="panel-title">JWT DECODER</div>
+            <div class="panel-subtitle">Inspect token structure — notice missing 'exp' claim</div>
+
+            <div class="card">
+                <div class="card-title">PASTE JWT TOKEN</div>
+                <textarea class="inp" id="decode-input" rows="4" placeholder="eyJhbGciOiJIUzI1NiJ9..."></textarea>
+                <br/><br/>
+                <button class="btn" onclick="decodeJWT()">DECODE</button>
+            </div>
+
+            <div class="card" id="decode-output" style="display:none">
+                <div class="card-title">DECODED PARTS</div>
+                <div id="decode-parts"></div>
+            </div>
+        </div>
+
+        <!-- Brute Force Panel -->
+        <div class="panel" id="panel-brute">
+            <div class="panel-title">BRUTE FORCE DEMO</div>
+            <div class="panel-subtitle">No rate limiting = unlimited login attempts</div>
+
+            <div class="card">
+                <div class="card-title">AUTOMATED LOGIN ATTEMPTS</div>
+                <div class="input-row">
+                    <input class="inp" id="brute-user" placeholder="Target username" value="admin" />
+                </div>
+                <div class="stat-row">
+                    <div class="stat">
+                        <div class="stat-num" id="attempt-count">0</div>
+                        <div class="stat-lbl">ATTEMPTS</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-num" style="color:var(--yellow)" id="fail-count">0</div>
+                        <div class="stat-lbl">FAILED</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-num" style="color:var(--green)" id="success-flag">—</div>
+                        <div class="stat-lbl">CRACKED</div>
+                    </div>
+                </div>
+                <button class="btn" id="brute-btn" onclick="startBrute()">START ATTACK</button>
+                <button class="btn btn-danger" onclick="stopBrute()" style="margin-left:8px">STOP</button>
+                <br/><br/>
+                <div class="output-label">LOG</div>
+                <div class="output" id="brute-log"></div>
+            </div>
+
+            <div class="fix-section">
+                <div class="fix-title">✅ FIXES FOR BRUTE FORCE</div>
+                <pre><span class="highlight-green">1. Rate limiting (max 5 attempts / minute)
+2. Account lockout after N failed attempts
+3. CAPTCHA on login form
+4. Alert on suspicious activity
+5. MFA (Multi-Factor Authentication)
+6. Strong password policy</span></pre>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+    const WORDLIST = ['password','123456','password1','admin','letmein','qwerty',
+                      'welcome','monkey','dragon','master','shadow','sunshine',
+                      'princess','football','iloveyou','trustno1','admin123'];
+
+    let bruteRunning = false;
+    let bruteIndex   = 0;
+    let attempts = 0, fails = 0;
+
+    function showPanel(name) {
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById('panel-' + name).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    function setPayload(u, p) {
+        document.getElementById('sqli-user').value = u;
+        document.getElementById('sqli-pass').value = p;
+    }
+
+    function setSearchPayload(q) {
+        document.getElementById('sqli-search').value = q;
+    }
+
+    async function sqliLogin() {
+        const username = document.getElementById('sqli-user').value;
+        const password = document.getElementById('sqli-pass').value;
+        const out = document.getElementById('sqli-login-out');
+        out.textContent = 'Sending request...';
+        out.className = 'output';
+
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            out.textContent = JSON.stringify(data, null, 2);
+            out.className = res.ok ? 'output success' : 'output error';
+
+            if (data.token) {
+                document.getElementById('currentUser').textContent = data.username + ' [' + data.role + ']';
+            }
+        } catch (e) {
+            out.textContent = 'Network error: ' + e.message;
+            out.className = 'output error';
+        }
+    }
+
+    async function sqliSearch() {
+        const q = document.getElementById('sqli-search').value;
+        const out = document.getElementById('sqli-search-out');
+        out.textContent = 'Searching...';
+
+        try {
+            const res = await fetch('/api/users/search?q=' + encodeURIComponent(q));
+            const data = await res.json();
+            out.textContent = JSON.stringify(data, null, 2);
+            out.className = res.ok ? 'output success' : 'output error';
+        } catch (e) {
+            out.textContent = 'Error: ' + e.message;
+            out.className = 'output error';
+        }
+    }
+
+    async function doLogin() {
+        const username = document.getElementById('auth-user').value;
+        const password = document.getElementById('auth-pass').value;
+
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+
+            if (data.token) {
+                document.getElementById('token-display').textContent = data.token;
+                document.getElementById('currentUser').textContent = data.username;
+                renderJWT(data.token);
+            } else {
+                document.getElementById('token-display').textContent = JSON.stringify(data);
+            }
+        } catch (e) {
+            document.getElementById('token-display').textContent = 'Error: ' + e.message;
+        }
+    }
+
+    function renderJWT(token) {
+        const parts = token.split('.');
+        const container = document.getElementById('jwt-decoded');
+        container.innerHTML = '';
+
+        const labels = ['HEADER', 'PAYLOAD', 'SIGNATURE'];
+        const classes = ['jwt-header', 'jwt-payload', 'jwt-sig'];
+
+        parts.forEach((part, i) => {
+            const div = document.createElement('div');
+            div.className = 'jwt-part ' + classes[i];
+            let decoded = part;
+            if (i < 2) {
+                try {
+                    const padded = part + '='.repeat((4 - part.length % 4) % 4);
+                    decoded = JSON.stringify(JSON.parse(atob(padded)), null, 2);
+                } catch(e) {}
+            }
+            div.innerHTML = '<strong>' + labels[i] + ':</strong><br>' + decoded;
+            container.appendChild(div);
+        });
+    }
+
+    function decodeJWT() {
+        const token = document.getElementById('decode-input').value.trim();
+        if (!token) return;
+        const out = document.getElementById('decode-output');
+        out.style.display = 'block';
+        renderJWT(token);
+        document.getElementById('decode-parts').innerHTML =
+            document.getElementById('jwt-decoded').innerHTML;
+    }
+
+    async function startBrute() {
+        if (bruteRunning) return;
+        bruteRunning = true;
+        bruteIndex = 0;
+        attempts = 0; fails = 0;
+        document.getElementById('success-flag').textContent = '—';
+        const log = document.getElementById('brute-log');
+        log.textContent = '';
+
+        const username = document.getElementById('brute-user').value;
+
+        async function tryNext() {
+            if (!bruteRunning || bruteIndex >= WORDLIST.length) {
+                bruteRunning = false;
+                log.textContent += '\n[✓] Attack finished.';
+                return;
+            }
+
+            const pwd = WORDLIST[bruteIndex++];
+            attempts++;
+            document.getElementById('attempt-count').textContent = attempts;
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password: pwd })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.token) {
+                    log.textContent += `[✅ CRACKED] "${pwd}" → ${data.role}\n`;
+                    document.getElementById('success-flag').textContent = pwd;
+                    bruteRunning = false;
+                } else {
+                    fails++;
+                    document.getElementById('fail-count').textContent = fails;
+                    log.textContent += `[✗] "${pwd}"\n`;
+                    log.scrollTop = log.scrollHeight;
+                    setTimeout(tryNext, 120);
+                }
+            } catch (e) {
+                log.textContent += `[ERR] ${e.message}\n`;
+                setTimeout(tryNext, 120);
+            }
+        }
+
+        tryNext();
+    }
+
+    function stopBrute() {
+        bruteRunning = false;
+        document.getElementById('brute-log').textContent += '\n[⛔] Attack stopped.';
+    }
+</script>
+</body>
+</html>
